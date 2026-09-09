@@ -633,8 +633,11 @@ namespace Rice.Game
         {
             using (var rc = Database.GetContext())
             {
-                var user = rc.Users.Find((long)uid);
-                return user.Characters.Select(ch => new Character(ch)).ToList();
+                // Not user.Characters: that lazy-loads through the Owner/UID
+                // navigation property, which EF maps to a nonexistent Owner_ID
+                // column instead of honoring [ForeignKey("UID")] - queries
+                // straight off Characters like every other method here instead.
+                return rc.Characters.Where(ch => ch.UID == (long)uid).Select(ch => new Character(ch)).ToList();
             }
         }
 
