@@ -75,8 +75,15 @@ namespace Rice
                             Credits = 1000
                         };
 
+                        rc.Users.Add(testUser);
+                        rc.SaveChanges();
+
+                        // No navigation-property cascade: Character/Vehicle only carry
+                        // plain UID/CID columns now, set by hand once the parent row's
+                        // generated ID is known.
                         var testChar = new Character
                         {
+                            UID = testUser.ID,
                             Name = "RiceAdmin",
                             Mito = 12345678910,
                             Avatar = 2,
@@ -85,11 +92,12 @@ namespace Rice
                             City = 1,
                             TID = -1
                         };
-
-                        testUser.Characters = new List<Character> {testChar};
+                        rc.Characters.Add(testChar);
+                        rc.SaveChanges();
 
                         var testVehicle = new Vehicle
                         {
+                            CID = testChar.ID,
                             CarID = 1,
                             AuctionCount = 0,
                             CarType = 88,
@@ -98,11 +106,9 @@ namespace Rice
                             Kms = 200,
                             Mitron = 5550f
                         };
+                        rc.Vehicles.Add(testVehicle);
 
-                        testChar.Vehicles = new List<Vehicle> {testVehicle};
                         testChar.CurrentCarID = testVehicle.CarID;
-
-                        rc.Users.Add(testUser);
                         rc.SaveChanges();
                     }
                 }

@@ -13,8 +13,6 @@ namespace Rice.Server.Database.Models
         public long ID { get; set; }
 
         public long CID { get; set; }
-        [ForeignKey("CID")]
-        public virtual Character Owner { get; set; }
 
         public int CarID { get; set; }
         public int CarType { get; set; }

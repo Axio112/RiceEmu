@@ -20,7 +20,5 @@ namespace Rice.Server.Database.Models
         public short FailCount { get; set; }
 
         public long CID { get; set; }
-        [ForeignKey("CID")]
-        public virtual Character Player { get; set; }
     }
 }

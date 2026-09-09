@@ -39,11 +39,6 @@ namespace Rice.Server.Database.Models
         public long QuickSlot2 { get; set; }
 
         public long UID { get; set; }
-        [ForeignKey("UID")]
-        public virtual User Owner { get; set; }
-
-        public virtual ICollection<Item> Items { get; set; }
-        public virtual ICollection<Vehicle> Vehicles { get; set; }
 
         public long TID { get; set; }
         // TODO: Crew relation

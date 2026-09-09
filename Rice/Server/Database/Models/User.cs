@@ -25,7 +25,5 @@ namespace Rice.Server.Database.Models
 
         // HanCoin / GoodBoyPoints
         public long Credits { get; set; }
-
-        public virtual ICollection<Character> Characters { get; set; } 
     }
 }

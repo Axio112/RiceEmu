@@ -72,7 +72,7 @@ namespace Rice.Game
                 rc.QuestStates.Add(new Models.QuestState
                 {
                     QID = qid,
-                    Player = character,
+                    CID = (long) cid,
                     State = 0,
                     Progress = 0,
                     FailCount = 0

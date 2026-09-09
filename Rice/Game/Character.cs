@@ -46,7 +46,7 @@ namespace Rice.Game
         public Vehicle Vehicle => Garage.FirstOrDefault(veh => veh.CarID == CurrentCarID);
         public ushort Serial;
 
-        private Character(Models.Character dbCharacter)
+        private Character(Models.Character dbCharacter, RiceContext rc)
         {
             CID = (ulong) dbCharacter.ID;
             UID = (ulong) dbCharacter.UID;
@@ -63,8 +63,11 @@ namespace Rice.Game
             QuickSlot2 = (uint) dbCharacter.QuickSlot2;
             GarageLevel = dbCharacter.GarageLevel;
             TID = dbCharacter.TID;
-            Inventory = dbCharacter.Items.Select(Item.FromDB).ToList();
-            Garage = dbCharacter.Vehicles.Select(Vehicle.FromDB).ToList();
+            // Not dbCharacter.Items/.Vehicles: those navigation properties map to
+            // FK columns ("Owner_ID" etc.) that don't exist in db.sdf's actual
+            // schema - query the same connection directly by CID instead.
+            Inventory = rc.Items.Where(i => i.CID == dbCharacter.ID).ToList().Select(Item.FromDB).ToList();
+            Garage = rc.Vehicles.Where(v => v.CID == dbCharacter.ID).ToList().Select(Vehicle.FromDB).ToList();
             PendingItemMods = new List<ItemModInfo>();
             VisualInventory = new List<VisualInvItem>();
             EquippedVisuals = new Dictionary<int, VisualItem>();
@@ -506,7 +509,7 @@ namespace Rice.Game
             Character character;
 
             using (var rc = Database.GetContext())
-                character = new Character(rc.Characters.SingleOrDefault(c => c.Name == charname));
+                character = new Character(rc.Characters.SingleOrDefault(c => c.Name == charname), rc);
 
             return character;
         }
@@ -633,14 +636,10 @@ namespace Rice.Game
         {
             using (var rc = Database.GetContext())
             {
-                // Not user.Characters: that lazy-loads through the Owner/UID
-                // navigation property, which EF maps to a nonexistent Owner_ID
-                // column instead of honoring [ForeignKey("UID")] - queries
-                // straight off Characters like every other method here instead.
                 // ToList() first and wrap after: LINQ to Entities can't translate
-                // the Character(Models.Character) constructor call in a Select.
+                // the Character(Models.Character, RiceContext) constructor call in a Select.
                 var dbCharacters = rc.Characters.Where(ch => ch.UID == (long)uid).ToList();
-                return dbCharacters.Select(ch => new Character(ch)).ToList();
+                return dbCharacters.Select(ch => new Character(ch, rc)).ToList();
             }
         }
 
