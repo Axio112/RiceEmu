@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Data.SqlServerCe;
+using System.IO;
 using Rice.Server.Database.Models;
 
 namespace Rice
@@ -44,7 +45,12 @@ namespace Rice
 
         public static void Initialize(Config config)
         {
-            conn = new SqlCeConnection("Data Source=db.sdf");
+            // The schema is maintained by hand against the shipped db.sdf, so no
+            // initializer should try to verify or recreate it.
+            System.Data.Entity.Database.SetInitializer<RiceContext>(null);
+
+            string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "db.sdf");
+            conn = new SqlCeConnection($"Data Source={dbPath}");
         }
 
         public static void Start()

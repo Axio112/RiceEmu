@@ -33,6 +33,11 @@ namespace Rice.Server.Database.Models
         public int CurrentCarID { get; set; }
         public int GarageLevel { get; set; }
 
+        // The client packs its quick slot assignments into two words. They were
+        // always sent as zero because there was nowhere to keep them.
+        public long QuickSlot1 { get; set; }
+        public long QuickSlot2 { get; set; }
+
         public long UID { get; set; }
         [ForeignKey("UID")]
         public virtual User Owner { get; set; }

@@ -13,17 +13,57 @@ namespace Rice.Server.Packets.Game
      * The chases need the Traffic Agent to control them, so all of these are at a standstill for now.
      * It needs a Chase game-object state implementation to store with players.
      * In addition to that, it's also lacking party implementation, sticking strictly to single-player.
-     * Rewards also need to be generated and verified. ChaseRequest should be implemented once these are in place.
+     * Rewards also need to be generated and verified.
      */
 
     public static class Chase
     {
+        // Deduplicate Tab-accept spam: the client resends ChaseRequest every tick until it gets a begin-confirm.
+        static readonly Dictionary<ulong, DateTime> RecentChaseStarts = new Dictionary<ulong, DateTime>();
+
         [RicePacket(189, RiceServer.ServerType.Game, CheckedIn = true)]
         public static void ChaseRequest(RicePacket packet)
         {
             bool now = packet.Reader.ReadByte() > 0;
             var position = Vector4.Deserialize(packet.Reader);
             Log.WriteLine($"ChaseRequest: Now - {now} | Pos {position}");
+
+            // Tab accept with "now" means start the chase immediately at the player's position.
+            // Without a ChaseBeginConfirm (181), the client never advances past the accept UI.
+            if (!now)
+                return;
+
+            var character = packet.Sender.Player.ActiveCharacter;
+            if (character == null)
+                return;
+
+            DateTime last;
+            if (RecentChaseStarts.TryGetValue(character.CID, out last)
+                && (DateTime.UtcNow - last).TotalSeconds < 3)
+            {
+                return;
+            }
+            RecentChaseStarts[character.CID] = DateTime.UtcNow;
+
+            int huvLevel = 1;
+            int huvId = 1;
+            int huvNum = 1;
+            var activeQuest = character.Quest;
+            if (activeQuest?.QuestInfo != null && activeQuest.QuestInfo.HuvLevel > 0)
+            {
+                huvLevel = activeQuest.QuestInfo.HuvLevel;
+                huvId = activeQuest.QuestInfo.HuvID;
+                Log.WriteLine("ChaseRequest starting quest chase {0} (HUV {1}/{2})",
+                    activeQuest.QuestInfo.Title, huvLevel, huvId);
+            }
+            else
+            {
+                // Free call-mission: scale a single HUV roughly to player level.
+                huvLevel = Math.Max(1, character.Level);
+                huvId = 1;
+            }
+
+            SendChaseBeginConfirm(packet.Sender, character, position, huvLevel, huvId, huvNum);
         }
 
         [RicePacket(180, RiceServer.ServerType.Game, CheckedIn = true)]
@@ -35,48 +75,56 @@ namespace Rice.Server.Packets.Game
             int firstHuvId = packet.Reader.ReadInt32();
             int huvNum = packet.Reader.ReadInt32();
 
-            //Log.WriteLine(
-            //    $"ChaseBegin:" +
-            //    $"\n\tChaseType: {chaseType}" +
-            //    $"\n\tStartPos: {startPos}" +
-            //    $"\n\tFirst HUV Lv{firstHuvLevel} ({firstHuvId}) x{huvNum}"
-            //);
+            var character = packet.Sender.Player.ActiveCharacter;
+            var activeQuest = character.Quest;
 
-            var activeQuest = packet.Sender.Player.ActiveCharacter.Quest;
+            int huvLevel = firstHuvLevel;
+            int huvId = firstHuvId;
+            if ((activeQuest?.QuestInfo?.HuvLevel ?? 0) > 0)
+            {
+                var info = activeQuest.QuestInfo;
+                Log.WriteLine("Player has active quest {0}, using huv info ({1}, {2})",
+                    info.Title, info.HuvLevel, info.HuvID);
+                huvLevel = info.HuvLevel;
+                huvId = info.HuvID;
+            }
 
-            var ack = new RicePacket(181); //todo
-            ack.Writer.Write(startPos); // struct XiVec4	m_StartPos;		 // this+0x2
-            ack.Writer.Write((byte)1); // char	m_Accepted;		 // this+0x12
-            ack.Writer.Write(180); // long	m_FindTimeout;		 // this+0x13
-            ack.Writer.Write(180); // long	m_ArrestTimeout;		 // this+0x17
-            ack.Writer.Write((ushort)huvNum); // unsigned short	m_huvSize;		 // this+0x1B
+            if (huvNum < 1)
+                huvNum = 1;
+
+            SendChaseBeginConfirm(packet.Sender, character, startPos, huvLevel, huvId, huvNum);
+        }
+
+        static void SendChaseBeginConfirm(RiceClient client, Rice.Game.Character character,
+            Vector4 startPos, int huvLevel, int huvId, int huvNum)
+        {
+            var ack = new RicePacket(181); // Cmd_ChaseBeginConfirm / BS_PktChaseBeginConfirm
+            ack.Writer.Write(startPos); // struct XiVec4 m_StartPos
+            ack.Writer.Write((byte)1); // char m_Accepted
+            ack.Writer.Write(180); // long m_FindTimeout
+            ack.Writer.Write(180); // long m_ArrestTimeout
+            ack.Writer.Write((ushort)huvNum); // unsigned short m_huvSize
             for (int i = 0; i < huvNum; i++)
             {
-                ack.Writer.Write(packet.Sender.Player.ActiveCharacter.Serial); //unsigned short m_Serial;         // this+0x0
-                ack.Writer.Write((ushort)(20397 + i)); //unsigned short m_CarSort;        // this+0x2
-                if ((activeQuest?.QuestInfo?.HuvLevel ?? 0) <= 0)
-                {
-                    ack.Writer.Write(firstHuvLevel); //int m_huvLevel;      // this+0x4
-                    ack.Writer.Write(firstHuvId); //int m_huvId;         // this+0x8
-                }
-                else
-                {
-                    var info = activeQuest.QuestInfo;
-                    Log.WriteLine($"Player has active quest {info.Title}, using huv info ({info.HuvLevel}, {info.HuvID})");
-                    ack.Writer.Write(info.HuvLevel); //int m_huvLevel;      // this+0x4
-                    ack.Writer.Write(info.HuvID); //int m_huvId;         // this+0x8
-                }
-                ack.Writer.Write(140f); //float m_Speed;       // this+0xC
-                ack.Writer.Write(300f); //float m_MaxSpeed;        // this+0x10
-                ack.Writer.Write(240f); //float m_NosAccel;        // this+0x14
-                ack.Writer.Write(3f); //float m_NosTime;         // this+0x18
-                ack.Writer.Write(3f); //float m_NosRefreshRate;      // this+0x1C
-                ack.Writer.Write(43f); //float m_Durability;      // this+0x20
-                ack.Writer.Write(2f); //float m_FrontPlayerAvoidanceRate;        // this+0x24
-                ack.Writer.Write(2f); //float m_FrontTrafficAvoidanceRate;       // this+0x28
-                ack.Writer.Write(1f); //float m_RearPlayerAvoidanceRate;		 // this+0x2C
+                // HUV unit serials must be distinct from the player's car serial.
+                ushort huvSerial = (ushort)(character.Serial + 1000 + i);
+                ack.Writer.Write(huvSerial); // unsigned short m_Serial
+                ack.Writer.Write((ushort)(20397 + i)); // unsigned short m_CarSort
+                ack.Writer.Write(huvLevel); // int m_huvLevel
+                ack.Writer.Write(huvId); // int m_huvId
+                ack.Writer.Write(140f); // float m_Speed
+                ack.Writer.Write(300f); // float m_MaxSpeed
+                ack.Writer.Write(240f); // float m_NosAccel
+                ack.Writer.Write(3f); // float m_NosTime
+                ack.Writer.Write(3f); // float m_NosRefreshRate
+                ack.Writer.Write(43f); // float m_Durability
+                ack.Writer.Write(2f); // float m_FrontPlayerAvoidanceRate
+                ack.Writer.Write(2f); // float m_FrontTrafficAvoidanceRate
+                ack.Writer.Write(1f); // float m_RearPlayerAvoidanceRate
             }
-            packet.Sender.Send(ack);
+            client.Send(ack);
+            Log.WriteLine("ChaseBeginConfirm sent for {0}: {1} HUV(s) lv{2} id{3} at {4}",
+                character.Name, huvNum, huvLevel, huvId, startPos);
         }
 
         [RicePacket(185, RiceServer.ServerType.Game, CheckedIn = true)]
@@ -87,16 +135,6 @@ namespace Rice.Server.Packets.Game
             ushort targetCarSort = packet.Reader.ReadUInt16();
             int time = packet.Reader.ReadInt32();
             int state = packet.Reader.ReadInt32();
-            string[] states = "WAIT RUN ARRESTING FAILTOCATCH ENDED".Split(' ');
-
-            //Log.WriteLine(
-            //    $"ChaseProgress:" +
-            //    $"\n\tSerial: {serial}" +
-            //    $"\n\tTargetSerial: {targetSerial}" +
-            //    $"\n\tTargetSort: {targetCarSort}" +
-            //    $"\n\tTime: {time}" +
-            //    $"\n\tState: {states[state]} ({state})"
-            //);
 
             var ack = new RicePacket(185);
             ack.Writer.Write(serial);
@@ -120,19 +158,6 @@ namespace Rice.Server.Packets.Game
             string name = packet.Reader.ReadUnicodeStatic(10);
             ushort what = packet.Reader.ReadUInt16();
             ushort what2 = packet.Reader.ReadUInt16();
-            //Log.WriteLine(
-            //    $"ChaseHit:" +
-            //    $"\n\tSerial: {serial}" +
-            //    $"\n\tTargetSerial: {targetSerial}" +
-            //    $"\n\tTargetSort: {targetCarSort}" +
-            //    $"\n\tDamage: {damage}" +
-            //    $"\n\tTime: {time}" +
-            //    $"\n\tFlags: {flags}" +
-            //    $"\n\tResultLife: {resultLife}" +
-            //    $"\n\tName: {name}" +
-            //    $"\n\tWhat: {what}" +
-            //    $"\n\tWhat2: {what2}"
-            //);
         }
 
         [RicePacket(183, RiceServer.ServerType.Game, CheckedIn = true)]
@@ -147,43 +172,47 @@ namespace Rice.Server.Packets.Game
             var vel = Vector4.Deserialize(packet.Reader);
             int time = packet.Reader.ReadInt32();
 
-            // ^ this is fucked, but it's aligned enough to work for now
+            // Layout above is imperfect but aligned enough for the result window.
+            var character = packet.Sender.Player.ActiveCharacter;
 
-            //Log.WriteLine(
-            //    $"ChaseEnd:" +
-            //    $"\n\tBuffer: {BitConverter.ToString(packet.Buffer)}" +
-            //    $"\n\tSerial: {serial}" +
-            //    $"\n\tCarSort: {carSort}" +
-            //    $"\n\tType: {type}" +
-            //    $"\n\tLife: {life}" +
-            //    $"\n\tResult: {result}" +
-            //    $"\n\tPosition: {pos}" +
-            //    $"\n\tVelocity: {vel}" +
-            //    $"\n\tTime: {time}"
-            //);
-            
-            var ack = new RicePacket(184); // ChaseResult
+            // Grant a small payout on success-looking results so the result UI has numbers.
+            // result semantics are not fully documented; non-zero is treated as a finished chase.
+            int deltaMoney = 0;
+            int deltaExp = 0;
+            if (result != 0 || life <= 0f)
+            {
+                deltaMoney = 250;
+                deltaExp = 50;
+                character.GrantExperience(deltaExp);
+                character.GrantMito((ulong)deltaMoney);
+            }
+
+            var ack = new RicePacket(184); // ChaseResult — client shows post-chase UI / return-to-station from this
             ack.Writer.Write(result);
             ack.Writer.Write(time);
-            ack.Writer.Write((ushort)1); // unitSize - player count?
+            ack.Writer.Write((ushort)1); // unitSize - player count
             ack.Writer.Write(new byte[4 * 4 + 4 * 4]); // int selfdaily[4]; int teamdaily[4];
 
-            ack.Writer.WriteUnicodeStatic(packet.Sender.Player.ActiveCharacter.Name, 0x20);
+            ack.Writer.WriteUnicodeStatic(character.Name, 0x20);
             ack.Writer.Write(serial);
             ack.Writer.Write(carSort);
-            ack.Writer.Write(0); // deltaHuvMoney
+            ack.Writer.Write(deltaMoney); // deltaHuvMoney
             ack.Writer.Write(0); // deltaBonusMoney
-            ack.Writer.Write(0L); // money
-            ack.Writer.Write(0); // deltaHuvExp
+            ack.Writer.Write((long)character.Mito); // money
+            ack.Writer.Write(deltaExp); // deltaHuvExp
             ack.Writer.Write(0); // deltaBonusExp
-            ack.Writer.Write(packet.Sender.Player.ActiveCharacter.GetExpInfo());
-            ack.Writer.Write(packet.Sender.Player.ActiveCharacter.Level);
+            ack.Writer.Write(character.GetExpInfo());
+            ack.Writer.Write(character.Level);
             ack.Writer.Write(1f); // point?
 
             ack.Writer.Write(0); // rewardItemCount
             ack.Writer.Write(0); // reward 1
             ack.Writer.Write(0); // reward 2
             packet.Sender.Send(ack);
+
+            RecentChaseStarts.Remove(character.CID);
+            Log.WriteLine("ChaseEnd/Result for {0}: result={1} life={2} time={3} +{4} mito +{5} exp",
+                character.Name, result, life, time, deltaMoney, deltaExp);
         }
     }
 }

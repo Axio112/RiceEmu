@@ -12,8 +12,16 @@ namespace Rice
     {
         static void Main(string[] args)
         {
-            Console.Title = "Rice";
-            Console.Clear();
+            try
+            {
+                Console.Title = "Rice";
+                Console.Clear();
+            }
+            catch (System.IO.IOException)
+            {
+                // Running with output redirected to a file or pipe: there is no
+                // console buffer to clear, which is not a reason to fail startup.
+            }
 
             Config config = Config.Load();
 

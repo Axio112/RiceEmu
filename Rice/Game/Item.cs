@@ -83,6 +83,17 @@ namespace Rice.Game
             }
             ID = lookupId;
             itemEntry = ItemTable.Items[tblIdx];
+
+            // Items with a limited lifetime carry an expiry in the item table, but
+            // there is no column to store when this one was obtained, so expireTick
+            // stayed 0 and the client read every such item as already expired.
+            // Give anything that expires a full year from now.
+            if (!string.IsNullOrEmpty(itemEntry.ExpirationTime)
+                && itemEntry.ExpirationTime != "n/a"
+                && itemEntry.ExpirationTime != "0")
+            {
+                expireTick = (uint) (DateTime.UtcNow.AddDays(365) - new DateTime(1970, 1, 1)).TotalSeconds;
+            }
         }
 
         public static Item FromDB(Models.Item dbItem) => new Item(dbItem.ItemID, dbItem);

@@ -131,6 +131,7 @@
     <Compile Include="Server\Structures\Resources\VehicleTable.cs" />
     <Compile Include="Server\Structures\Resources\ItemTable.cs" />
     <Compile Include="Server\Structures\Resources\QuestTable.cs" />
+    <Compile Include="Server\Structures\Resources\VShopTable.cs" />
     <Compile Include="Server\Structures\Vehicle.cs" />
     <Compile Include="Utilities.cs" />
   </ItemGroup>

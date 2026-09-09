@@ -74,8 +74,30 @@ namespace Rice.Server.Structures
         public int ItemUseAcceleration;
         public int ItemUseBoost;
 
+        // US client left-column performance floats (mph / accel-sec / crash min-max / boost-sec).
+        // Wire order after the 20 StatInfo ints: PERF (40) then XiStrEnChantBonus.
+        // Putting EnChant before Perf caused the client to read enchant ints as floats
+        // (left column 0.0) and Perf mph as Assist "Maximum Speed Increase".
+        public float PerfSpeed;
+        public float PerfAcceleration;
+        public float PerfCrashMin;
+        public float PerfCrashMax;
+        public float PerfBoost;
+
+        // XiStrEnChantBonus — US GameClient.h is 4 ints + 4 floats (NO AddSpeed = 32 bytes).
+        // ZoneServer.h KR has an extra AddSpeed int (36). Rice targets the US client.
+        public int EnchantSpeed;
+        public int EnchantCrash;
+        public int EnchantAccel;
+        public int EnchantBoost;
+        public float Drop;
+        public float Exp;
+        public float MitronCapacity;
+        public float MitronEfficiency;
+
         public void Serialize(PacketWriter writer)
         {
+            // XiStrStatInfo — 20 int32s. Totals MUST stay int32 (right-hand point columns).
             writer.Write(BaseSpeed);
             writer.Write(BaseDurability);
             writer.Write(BaseAcceleration);
@@ -106,7 +128,26 @@ namespace Rice.Server.Structures
             writer.Write(totalAcceleration);
             writer.Write(totalBoost);
 
-            writer.Write(new byte[76]);
+            // 40-byte US performance trailer FIRST (client left column).
+            writer.Write(PerfSpeed);
+            writer.Write(PerfAcceleration);
+            writer.Write(PerfCrashMin);
+            writer.Write(PerfCrashMax);
+            writer.Write(PerfBoost);
+            writer.Write(new byte[20]);
+
+            // XiStrEnChantBonus (32 bytes US) AFTER perf.
+            writer.Write(EnchantSpeed);
+            writer.Write(EnchantCrash);
+            writer.Write(EnchantAccel);
+            writer.Write(EnchantBoost);
+            writer.Write(Drop);
+            writer.Write(Exp);
+            writer.Write(MitronCapacity);
+            writer.Write(MitronEfficiency);
+
+            // Pad remaining 4 bytes so trailer stays 76 (matches historic Rice body size).
+            writer.Write(new byte[4]);
         }
     }
 }

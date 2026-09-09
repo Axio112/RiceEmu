@@ -100,9 +100,9 @@ namespace Rice.Server.Core
                 if (debugNameDatabase.ContainsKey(packet.ID))
                     Log.WriteLine("Received {2} (id {0}, {0:X}) on {1}.", packet.ID, port, debugNameDatabase[packet.ID]);
                 else
-                    Log.WriteLine("Received unknown packet (id {0}, {0:X}) on {1}.", packet.ID, port);
+                    Log.WriteLine("Received unknown packet (id {0}, {0:X}) on {1}. payload {2}", packet.ID, port, packet.Buffer == null ? "(empty)" : BitConverter.ToString(packet.Buffer));
 #else
-                Log.WriteLine("Received unknown packet (id {0}, {0:X}) on {1}.", packet.ID, port);
+                Log.WriteLine("Received unknown packet (id {0}, {0:X}) on {1}. payload {2}", packet.ID, port, packet.Buffer == null ? "(empty)" : BitConverter.ToString(packet.Buffer));
 #endif
                 Console.ForegroundColor = ConsoleColor.Gray;
             }

@@ -70,7 +70,7 @@ namespace Rice.Server.Structures.Resources
         [JsonProperty("upgrademito")] public int UpgradeCost;
 
         [JsonProperty("capacity")] public float MitronCapacity;
-        [JsonProperty("efficienty")] public float MitronEfficiency;
+        [JsonProperty("efficiency")] public float MitronEfficiency;
 
         [JsonProperty("accel")] public int Acceleration;
         [JsonProperty("boost")] public int Boost;
@@ -91,6 +91,11 @@ namespace Rice.Server.Structures.Resources
         [JsonProperty("req_cond")] public string Condition;
 
         [JsonProperty("file_name")] public string FileName;
+
+        [JsonProperty("speed")] public int DisplaySpeed;
+        [JsonProperty("accel")] public int DisplayAccel;
+        [JsonProperty("crash")] public int DisplayCrash;
+        [JsonProperty("boost")] public int DisplayBoost;
 
         public bool InDealership() => Sellable == 1;
         public bool HasCondition() => Condition != "N/A";

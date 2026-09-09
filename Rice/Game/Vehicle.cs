@@ -55,9 +55,10 @@ namespace Rice.Game
         {
             using (var rc = Database.GetContext())
             {
+                VehicleUpgradeEntry upgrade;
                 try
                 {
-                    VehicleTable.GetVehicleUpgrade(carSort, grade);
+                    upgrade = VehicleTable.GetVehicleUpgrade(carSort, grade);
                 }
                 catch (Exception ex)
                 {
@@ -74,7 +75,10 @@ namespace Rice.Game
                     CarType = carSort,
                     Grade = grade,
                     AuctionCount = 0,
-                    Color = color
+                    Color = color,
+                    // Every grant path (dealership, admin, new-character) goes through
+                    // here, and a 0 tank otherwise makes a brand new car undriveable.
+                    Mitron = upgrade.MitronCapacity
                 };
 
                 rc.Vehicles.Add(newVehicle);

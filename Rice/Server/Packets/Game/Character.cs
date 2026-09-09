@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -42,19 +42,47 @@ namespace Rice.Server.Packets.Game
             packet.Sender.Send(ack);
             Log.WriteLine("Sent LoadCharAck");
 
+            // E) Clear ephemeral in-progress missions on login so Drive Dome HUD
+            // does not stick after a relog (State 0 = started / active).
+            try
+            {
+                var active = Rice.Game.Quest.Retrieve(character.CID);
+                foreach (var q in active)
+                {
+                    if (q.State == 0)
+                    {
+                        q.Fail(true); // state 4 = gave up
+                        Log.WriteLine(string.Format("Cleared sticky mission QID={0} for {1} on LoadChar", q.QID, character.Name));
+                    }
+                }
+                character.Quest = null;
+            }
+            catch (Exception ex)
+            {
+                Log.WriteError("Mission clear on LoadChar failed: {0}", ex.Message);
+            }
+
             var stat = new RicePacket(760);
             stat.Writer.Write(character.GetStatUpdate());
             packet.Sender.Send(stat);
         }
 
+
+
         [RicePacket(1200, RiceServer.ServerType.Game)]
         public static void VisualItemList(RicePacket packet)
         {
-            var ack = new RicePacket(1801);
-            ack.Writer.Write(262144); // ListUpdate (262144 = First packet from list queue, 262145 = sequential)
-            ack.Writer.Write(0); // ItemNum
-            ack.Writer.Write(new byte[120]); // Null VisualItem (120 bytes per XiStrMyVSItem)
-            packet.Sender.Send(ack);
+            var character = packet.Sender.Player.ActiveCharacter;
+            if (character == null)
+            {
+                var ack = new RicePacket(1201);
+                ack.Writer.Write(262144);
+                ack.Writer.Write(0);
+                ack.Writer.Write(new byte[120]);
+                packet.Sender.Send(ack);
+                return;
+            }
+            character.SendVisualItemList(packet.Sender);
         }
 
         [RicePacket(400, RiceServer.ServerType.Game)]
@@ -101,3 +129,4 @@ namespace Rice.Server.Packets.Game
         }
     }
 }
+
