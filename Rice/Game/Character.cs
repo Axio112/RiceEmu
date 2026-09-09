@@ -637,7 +637,10 @@ namespace Rice.Game
                 // navigation property, which EF maps to a nonexistent Owner_ID
                 // column instead of honoring [ForeignKey("UID")] - queries
                 // straight off Characters like every other method here instead.
-                return rc.Characters.Where(ch => ch.UID == (long)uid).Select(ch => new Character(ch)).ToList();
+                // ToList() first and wrap after: LINQ to Entities can't translate
+                // the Character(Models.Character) constructor call in a Select.
+                var dbCharacters = rc.Characters.Where(ch => ch.UID == (long)uid).ToList();
+                return dbCharacters.Select(ch => new Character(ch)).ToList();
             }
         }
 
